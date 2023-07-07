@@ -1,0 +1,211 @@
+﻿
+@using Microsoft.Extensions.Options;
+@using Rutas.Domain;
+
+@inject Helpers.IApiService apiService
+@inject IOptions<AppConfiguration> appConfiguration
+
+
+<RadzenButton ButtonStyle="ButtonStyle.Success" Icon="add_circle_outline" class="mt-2 mb-4" Text="Agregar Nuevo" Click="@InsertRow" Disabled=@(recorridoRutaToInsert != null || recorridoRutaToUpdate != null) />
+<RadzenDataGrid @ref="recorridoRutaGrid" AllowAlternatingRows="false" AllowFiltering="true" AllowPaging="true" PageSize="5" AllowSorting="true" EditMode="DataGridEditMode.Single"
+                Data="@recorridoRutas" TItem="RecorridoRutaDto" RowUpdate="@OnUpdateRow" RowCreate="@OnCreateRow" Sort="@Reset" Page="@Reset" Filter="@Reset" ColumnWidth="200px">
+    <EmptyTemplate>
+        <p style="color: lightgrey; font-size: 24px; text-align: center; margin: 2rem;">No existen registros.</p>
+    </EmptyTemplate>
+    <Columns>
+       
+        <RadzenDataGridColumn TItem="RecorridoRutaDto" Property="Orden" Title="Orden">
+            <Template Context="recorridoRutas">
+                @if (recorridoRutas.Orden < 0)
+                {
+                    @inicio
+                }
+                else if (recorridoRutas.Orden == 1000)
+                {
+                    @final
+                }
+                else 
+                {
+                    @recorridoRutas.Orden.ToString()
+                }
+            </Template>
+            <EditTemplate Context="recorridoRutas">
+                <RadzenNumeric Min="0" Max="99999" TValue="int?" Format="#####" TextAlign="TextAlign.Right" @bind-Value="recorridoRutas.Orden" Style="width:100%; display: block" Name="Orden" />
+                <RadzenRequiredValidator Text="Orden es Requerido" Component="Orden" Popup="true" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+
+        <RadzenDataGridColumn TItem="RecorridoRutaDto" Property="IdCiudad" Title="Ciudad">
+            <Template Context="recorridoRutas">
+                @recorridoRutas.NombreCiudad
+            </Template>
+            <EditTemplate Context="recorridoRutas">
+                <RadzenDropDown @bind-Value="recorridoRutas.IdCiudad" Data="@ciudades" Name="Ciudad" ValueProperty="Id" Style="width:100%; display: block;">
+                    <Template>
+                        @context.Nombre
+                    </Template>
+                </RadzenDropDown>
+                <RadzenRequiredValidator Text="Ciudad es Requerido" Component="Ciudad" Popup="true" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+
+        
+
+        <RadzenDataGridColumn TItem="RecorridoRutaDto" Context="recorridoRutas" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Width="156px">
+            <Template Context="recorridoRutas" >
+                
+                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" Click="@(args => EditRow(recorridoRutas))" @onclick:stopPropagation="true" Visible="@(recorridoRutas.Orden>0 && recorridoRutas.Orden <1000)">
+                </RadzenButton>
+                <RadzenButton ButtonStyle="ButtonStyle.Danger" Icon="delete" Variant="Variant.Flat" Shade="Shade.Lighter" Size="ButtonSize.Medium" class="my-1 ms-1" Click="@(args => DeleteRow(recorridoRutas))" @onclick:stopPropagation="true" Visible="@(recorridoRutas.Orden>0 && recorridoRutas.Orden <1000)">
+                </RadzenButton>
+            </Template>
+            <EditTemplate Context="recorridoRutas">
+                <RadzenButton Icon="check" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat" Size="ButtonSize.Medium" Click="@((args) => SaveRow(recorridoRutas))" Visible="@(recorridoRutas.Orden>0 && recorridoRutas.Orden <1000)">
+                </RadzenButton>
+                <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" class="my-1 ms-1" Click="@((args) => CancelEdit(recorridoRutas))" Visible="@(recorridoRutas.Orden>0 && recorridoRutas.Orden <1000)">
+                </RadzenButton>
+                <RadzenButton ButtonStyle="ButtonStyle.Danger" Icon="delete" Variant="Variant.Flat" Shade="Shade.Lighter" Size="ButtonSize.Medium" class="my-1 ms-1" Click="@(args => DeleteRow(recorridoRutas))" Visible="@(recorridoRutas.Orden>0 && recorridoRutas.Orden <1000)">
+                </RadzenButton>
+            </EditTemplate>
+        </RadzenDataGridColumn>
+    </Columns>
+</RadzenDataGrid>
+
+@code {
+
+    [Parameter]
+    public int IdRuta { get; set; }
+
+    string inicio = "Inicio";
+    string final = "Fin";
+    RadzenDataGrid<RecorridoRutaDto> recorridoRutaGrid;
+    IEnumerable<RecorridoRutaDto> recorridoRutas;
+    IEnumerable<CiudadDto> ciudades;
+
+    RecorridoRutaDto recorridoRutaToInsert;
+    RecorridoRutaDto recorridoRutaToUpdate;
+
+    void Reset()
+    {
+        recorridoRutaToInsert = null;
+        recorridoRutaToUpdate = null;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        var response = await apiService.Get < List<RecorridoRutaDto>>("RecorridosRutas", false, "", appConfiguration.Value.ServiceURL, "", 0, "IdRuta",$"{IdRuta}");
+
+        if (!response.IsError)
+        {
+            recorridoRutas = response.Result as List<RecorridoRutaDto>;
+        }
+
+        response = await apiService.GetList<CiudadDto>("Ciudades", false, "", appConfiguration.Value.ServiceURL, "", 0);
+
+        if (!response.IsError)
+        {
+            ciudades = response.Result as List<CiudadDto>;
+        }
+    }
+
+    async Task EditRow(RecorridoRutaDto recorridoRutas)
+    {
+        recorridoRutaToUpdate = recorridoRutas;
+        await recorridoRutaGrid.EditRow(recorridoRutas);
+    }
+
+    async void OnUpdateRow(RecorridoRutaDto recorridoRutas)
+    {
+        if (recorridoRutas == recorridoRutaToInsert)
+        {
+            recorridoRutaToInsert = null;
+        }
+
+        recorridoRutaToUpdate = null;
+
+        /*envio api*/
+        var response = await apiService.Put<RecorridoRutaDto>("RecorridosRutas", recorridoRutas, false, "", appConfiguration.Value.ServiceURL, "", 0);
+
+        await Recargar();
+
+        await recorridoRutaGrid.Reload();
+
+    }
+
+    async Task SaveRow(RecorridoRutaDto recorridoRutas)
+    {
+        await recorridoRutaGrid.UpdateRow(recorridoRutas);
+    }
+
+    void CancelEdit(RecorridoRutaDto recorridoRutas)
+    {
+        if (recorridoRutas == recorridoRutaToInsert)
+        {
+            recorridoRutaToInsert = null;
+        }
+
+        recorridoRutaToUpdate = null;
+
+        recorridoRutaGrid.CancelEditRow(recorridoRutas);
+
+
+    }
+
+    async Task DeleteRow(RecorridoRutaDto recorridoRuta)
+    {
+        if (recorridoRuta == recorridoRutaToInsert)
+        {
+            recorridoRutaToInsert = null;
+        }
+
+        if (recorridoRuta == recorridoRutaToUpdate)
+        {
+            recorridoRutaToUpdate = null;
+        }
+
+        if (recorridoRutas.Contains(recorridoRuta))
+        {
+            /*envio al api*/
+            var response = await apiService.Delete<RecorridoRutaDto>("RecorridosRutas", false, recorridoRuta, "", appConfiguration.Value.ServiceURL, "", 0);
+
+            await Recargar();
+
+            await recorridoRutaGrid.Reload();
+        }
+        else
+        {
+            recorridoRutaGrid.CancelEditRow(recorridoRuta);
+            await recorridoRutaGrid.Reload();
+        }
+    }
+
+    async Task InsertRow()
+    {
+        recorridoRutaToInsert = new RecorridoRutaDto() {IdRuta = IdRuta};
+        await recorridoRutaGrid.InsertRow(recorridoRutaToInsert);
+    }
+
+    async void OnCreateRow(RecorridoRutaDto recorridoRutas)
+    {
+        recorridoRutaToInsert = null;
+
+        var response = await apiService.Post<RecorridoRutaDto>("RecorridosRutas", recorridoRutas, false, "", appConfiguration.Value.ServiceURL, "", 0);
+
+    }
+
+    async Task Recargar()
+    {
+        var response = await apiService.Get<List<RecorridoRutaDto>>("RecorridosRutas", false, "", appConfiguration.Value.ServiceURL, "", 0, "IdRuta", $"{IdRuta}");
+
+        recorridoRutas = new List<RecorridoRutaDto>();
+        if (!response.IsError)
+        {
+
+            recorridoRutas = response.Result as List<RecorridoRutaDto>;
+        }
+
+        StateHasChanged();
+    }
+}

@@ -1,0 +1,199 @@
+﻿@page "/Autobuses"
+@using Microsoft.Extensions.Options;
+@using Rutas.Domain;
+
+@inject Helpers.IApiService apiService
+@inject IOptions<AppConfiguration> appConfiguration
+
+<h3>Autobuses</h3>
+
+<RadzenButton ButtonStyle="ButtonStyle.Success" Icon="add_circle_outline" class="mt-2 mb-4" Text="Agregar Nuevo" Click="@InsertRow" Disabled=@(autobusToInsert != null || autobusToUpdate != null) />
+<RadzenDataGrid @ref="autobusesGrid" AllowAlternatingRows="false" AllowFiltering="true" AllowPaging="true" PageSize="5" AllowSorting="true" EditMode="DataGridEditMode.Single"
+                Data="@autobuses" TItem="AutobusDto" RowUpdate="@OnUpdateRow" RowCreate="@OnCreateRow" Sort="@Reset" Page="@Reset" Filter="@Reset" ColumnWidth="200px">
+    <EmptyTemplate>
+        <p style="color: lightgrey; font-size: 24px; text-align: center; margin: 2rem;">No existen registros.</p>
+    </EmptyTemplate>
+    <Columns>
+        <RadzenDataGridColumn TItem="AutobusDto" Property="Matricula" Title="Matricula">
+            <EditTemplate Context="autobus">
+                <RadzenTextBox @bind-Value="autobus.Matricula" Style="width:100%; display: block" Name="Matricula" />
+                <RadzenRequiredValidator Text="Matricula es Requerido" Component="Matricula" Popup="true" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="AutobusDto" Property="Modelo" Title="Modelo">
+            <EditTemplate Context="autobus">
+                <RadzenTextBox   @bind-Value="autobus.Modelo" Style="width:100%; display: block" Name="Modelo" />
+                <RadzenRequiredValidator Text="Modelo es Requerido" Component="Modelo" Popup="true" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="AutobusDto" Property="Capacidad" Title="Capacidad">
+            <EditTemplate Context="autobus">
+                <RadzenNumeric Min="1" Max="99" TextAlign="TextAlign.Right" @bind-Value="autobus.Capacidad" Style="width:100%; display: block" Name="Capacidad" />
+                <RadzenRequiredValidator Text="Capacidad es Requerido" Component="Capacidad" Popup="true" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+
+        <RadzenDataGridColumn TItem="AutobusDto" Property="IdConductor" Title="Conductor">
+            <Template Context="autobus">
+                @autobus.NombreConductor
+            </Template>
+            <EditTemplate Context="autobus">
+                <RadzenDropDown @bind-Value="autobus.IdConductor" Data="@conductores" Name="Conductor" ValueProperty="Id" Style="width:100%; display: block;">
+                    <Template>
+                        @context.Nombre
+                    </Template>
+                </RadzenDropDown>
+                <RadzenRequiredValidator Text="Conductor es Requerido" Component="Conductor" Popup="true" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+
+        <RadzenDataGridColumn TItem="AutobusDto" Context="autobus" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Width="156px">
+            <Template Context="autobus">
+                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" Click="@(args => EditRow(autobus))" @onclick:stopPropagation="true">
+                </RadzenButton>
+                <RadzenButton ButtonStyle="ButtonStyle.Danger" Icon="delete" Variant="Variant.Flat" Shade="Shade.Lighter" Size="ButtonSize.Medium" class="my-1 ms-1" Click="@(args => DeleteRow(autobus))" @onclick:stopPropagation="true">
+                </RadzenButton>
+            </Template>
+            <EditTemplate Context="autobus">
+                <RadzenButton Icon="check" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat" Size="ButtonSize.Medium" Click="@((args) => SaveRow(autobus))">
+                </RadzenButton>
+                <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" class="my-1 ms-1" Click="@((args) => CancelEdit(autobus))">
+                </RadzenButton>
+                <RadzenButton ButtonStyle="ButtonStyle.Danger" Icon="delete" Variant="Variant.Flat" Shade="Shade.Lighter" Size="ButtonSize.Medium" class="my-1 ms-1" Click="@(args => DeleteRow(autobus))">
+                </RadzenButton>
+            </EditTemplate>
+        </RadzenDataGridColumn>
+    </Columns>
+</RadzenDataGrid>
+
+@code {
+    RadzenDataGrid<AutobusDto> autobusesGrid;
+    IEnumerable<AutobusDto> autobuses;
+    IEnumerable<ConductorDto> conductores;
+
+    AutobusDto autobusToInsert;
+    AutobusDto autobusToUpdate;
+
+    void Reset()
+    {
+        autobusToInsert = null;
+        autobusToUpdate = null;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        var response = await apiService.GetList<AutobusDto>("Autobuses", false, "", appConfiguration.Value.ServiceURL, "", 0);
+
+        if (!response.IsError)
+        {
+            autobuses = response.Result as List<AutobusDto>;
+        }
+
+        response = await apiService.GetList<ConductorDto>("Conductores", false, "", appConfiguration.Value.ServiceURL, "", 0);
+
+        if (!response.IsError)
+        {
+            conductores = response.Result as List<ConductorDto>;
+        }
+    }
+
+    async Task EditRow(AutobusDto autobus)
+    {
+        autobusToUpdate = autobus;
+        await autobusesGrid.EditRow(autobus);
+    }
+
+    async void OnUpdateRow(AutobusDto autobus)
+    {
+        if (autobus == autobusToInsert)
+        {
+            autobusToInsert = null;
+        }
+
+        autobusToUpdate = null;
+
+        /*envio api*/
+        var response = await apiService.Put<AutobusDto>("Autobuses", autobus, false, "", appConfiguration.Value.ServiceURL, "", 0);
+
+        await Recargar();
+
+        await autobusesGrid.Reload();
+
+    }
+
+    async Task SaveRow(AutobusDto autobus)
+    {
+        await autobusesGrid.UpdateRow(autobus);
+    }
+
+    void CancelEdit(AutobusDto autobus)
+    {
+        if (autobus == autobusToInsert)
+        {
+            autobusToInsert = null;
+        }
+
+        autobusToUpdate = null;
+
+        autobusesGrid.CancelEditRow(autobus);
+
+
+    }
+
+    async Task DeleteRow(AutobusDto autobus)
+    {
+        if (autobus == autobusToInsert)
+        {
+            autobusToInsert = null;
+        }
+
+        if (autobus == autobusToUpdate)
+        {
+            autobusToUpdate = null;
+        }
+
+        if (autobuses.Contains(autobus))
+        {
+            /*envio al api*/
+            var response = await apiService.Delete<AutobusDto>("Autobuses", false, autobus, "", appConfiguration.Value.ServiceURL, "", 0);
+
+            await Recargar();
+
+            await autobusesGrid.Reload();
+        }
+        else
+        {
+            autobusesGrid.CancelEditRow(autobus);
+            await autobusesGrid.Reload();
+        }
+    }
+
+    async Task InsertRow()
+    {
+        autobusToInsert = new AutobusDto();
+        await autobusesGrid.InsertRow(autobusToInsert);
+    }
+
+    async void OnCreateRow(AutobusDto autobus)
+    {
+        autobusToInsert = null;
+
+        var response = await apiService.Post<AutobusDto>("Autobuses", autobus, false, "", appConfiguration.Value.ServiceURL, "", 0);
+
+    }
+
+    async Task Recargar()
+    {
+        var response = await apiService.GetList<AutobusDto>("Autobuses", false, "", appConfiguration.Value.ServiceURL, "", 0);
+        autobuses = new List<AutobusDto>();
+        if (!response.IsError)
+        {
+
+            autobuses = response.Result as List<AutobusDto>;
+        }
+
+        StateHasChanged();
+    }
+}

@@ -1,0 +1,169 @@
+﻿@page "/Ciudades"
+@using Microsoft.Extensions.Options;
+@using Rutas.Domain;
+
+@inject Helpers.IApiService apiService
+@inject IOptions<AppConfiguration> appConfiguration
+
+<h3>Ciudades</h3>
+
+<RadzenButton ButtonStyle="ButtonStyle.Success" Icon="add_circle_outline" class="mt-2 mb-4" Text="Agregar Nuevo" Click="@InsertRow" Disabled=@(ciudadToInsert != null || ciudadToUpdate != null) />
+<RadzenDataGrid @ref="ciudadesGrid" AllowAlternatingRows="false" AllowFiltering="true" AllowPaging="true" PageSize="5" AllowSorting="true" EditMode="DataGridEditMode.Single"
+                Data="@conductores" TItem="CiudadDto" RowUpdate="@OnUpdateRow" RowCreate="@OnCreateRow" Sort="@Reset" Page="@Reset" Filter="@Reset" ColumnWidth="200px">
+    <EmptyTemplate>
+        <p style="color: lightgrey; font-size: 24px; text-align: center; margin: 2rem;">No existen registros.</p>
+    </EmptyTemplate>
+    <Columns>
+        <RadzenDataGridColumn TItem="CiudadDto" Property="Nombre" Title="Nombre">
+            <EditTemplate Context="ciudad">
+                <RadzenTextBox @bind-Value="ciudad.Nombre" Style="width:100%; display: block" Name="Nombre" />
+                <RadzenRequiredValidator Text="Nombre es Requerido" Component="Nombre" Popup="true" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="CiudadDto" Property="Direccion" Title="Dirección">
+            <EditTemplate Context="ciudad">
+                <RadzenTextArea @bind-Value="ciudad.Direccion" Style="width:100%; display: block" Name="Direccion" />
+                <RadzenRequiredValidator Text="Direccion es Requerido" Component="Direccion" Popup="true" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="CiudadDto" Property="Telefono" Title="Teléfono">
+            <EditTemplate Context="ciudad">
+                <RadzenMask Mask="****-****" CharacterPattern="[0-9]" Placeholder="0000-0000" @bind-Value="ciudad.Telefono" Style="width:100%; display: block" Name="Telefono" />
+                <RadzenRequiredValidator Text="Teléfono es Requerido" Component="Telefono" Popup="true" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="CiudadDto" Context="ciudad" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Width="156px">
+            <Template Context="ciudad">
+                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" Click="@(args => EditRow(ciudad))" @onclick:stopPropagation="true">
+                </RadzenButton>
+                <RadzenButton ButtonStyle="ButtonStyle.Danger" Icon="delete" Variant="Variant.Flat" Shade="Shade.Lighter" Size="ButtonSize.Medium" class="my-1 ms-1" Click="@(args => DeleteRow(ciudad))" @onclick:stopPropagation="true">
+                </RadzenButton>
+            </Template>
+            <EditTemplate Context="ciudad">
+                <RadzenButton Icon="check" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat" Size="ButtonSize.Medium" Click="@((args) => SaveRow(ciudad))">
+                </RadzenButton>
+                <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" class="my-1 ms-1" Click="@((args) => CancelEdit(ciudad))">
+                </RadzenButton>
+                <RadzenButton ButtonStyle="ButtonStyle.Danger" Icon="delete" Variant="Variant.Flat" Shade="Shade.Lighter" Size="ButtonSize.Medium" class="my-1 ms-1" Click="@(args => DeleteRow(ciudad))">
+                </RadzenButton>
+            </EditTemplate>
+        </RadzenDataGridColumn>
+    </Columns>
+</RadzenDataGrid>
+
+@code {
+    RadzenDataGrid<CiudadDto> ciudadesGrid;
+    IEnumerable<CiudadDto> conductores;
+
+    CiudadDto ciudadToInsert;
+    CiudadDto ciudadToUpdate;
+
+    void Reset()
+    {
+        ciudadToInsert = null;
+        ciudadToUpdate = null;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        var response = await apiService.GetList<CiudadDto>("Ciudades", false, "", appConfiguration.Value.ServiceURL, "", 0);
+
+        if (!response.IsError)
+        {
+            conductores = response.Result as List<CiudadDto>;
+        }
+    }
+
+    async Task EditRow(CiudadDto ciudad)
+    {
+        ciudadToUpdate = ciudad;
+        await ciudadesGrid.EditRow(ciudad);
+    }
+
+    async void OnUpdateRow(CiudadDto ciudad)
+    {
+        if (ciudad == ciudadToInsert)
+        {
+            ciudadToInsert = null;
+        }
+
+        ciudadToUpdate = null;
+
+        /*envio api*/
+        var response = await apiService.Put<CiudadDto>("Ciudades", ciudad, false, "", appConfiguration.Value.ServiceURL, "", 0);
+
+    }
+
+    async Task SaveRow(CiudadDto ciudad)
+    {
+        await ciudadesGrid.UpdateRow(ciudad);
+    }
+
+    void CancelEdit(CiudadDto ciudad)
+    {
+        if (ciudad == ciudadToInsert)
+        {
+            ciudadToInsert = null;
+        }
+
+        ciudadToUpdate = null;
+
+        ciudadesGrid.CancelEditRow(ciudad);
+
+
+    }
+
+    async Task DeleteRow(CiudadDto ciudad)
+    {
+        if (ciudad == ciudadToInsert)
+        {
+            ciudadToInsert = null;
+        }
+
+        if (ciudad == ciudadToUpdate)
+        {
+            ciudadToUpdate = null;
+        }
+
+        if (conductores.Contains(ciudad))
+        {
+            /*envio al api*/
+            var response = await apiService.Delete<CiudadDto>("Ciudades", false, ciudad, "", appConfiguration.Value.ServiceURL, "", 0);
+
+            await Recargar();
+
+            await ciudadesGrid.Reload();
+        }
+        else
+        {
+            ciudadesGrid.CancelEditRow(ciudad);
+            await ciudadesGrid.Reload();
+        }
+    }
+
+    async Task InsertRow()
+    {
+        ciudadToInsert = new CiudadDto();
+        await ciudadesGrid.InsertRow(ciudadToInsert);
+    }
+
+    async void OnCreateRow(CiudadDto ciudad)
+    {
+        ciudadToInsert = null;
+
+        var response = await apiService.Post<CiudadDto>("Ciudades", ciudad, false, "", appConfiguration.Value.ServiceURL, "", 0);
+
+    }
+
+    async Task Recargar()
+    {
+        var response = await apiService.GetList<CiudadDto>("Ciudades", false, "", appConfiguration.Value.ServiceURL, "", 0);
+
+        if (!response.IsError)
+        {
+            conductores = response.Result as List<CiudadDto>;
+        }
+    }
+}

@@ -1,0 +1,157 @@
+﻿@page "/Conductores"
+@using Microsoft.Extensions.Options;
+@using Rutas.Domain;
+
+@inject Helpers.IApiService apiService
+@inject IOptions<AppConfiguration> appConfiguration
+
+<h3>Conductores</h3>
+
+<RadzenButton ButtonStyle="ButtonStyle.Success" Icon="add_circle_outline" class="mt-2 mb-4" Text="Agregar Nuevo" Click="@InsertRow" Disabled=@(conductorToInsert != null || conductorToUpdate != null) />
+<RadzenDataGrid @ref="conductoresGrid" AllowAlternatingRows="false" AllowFiltering="true" AllowPaging="true" PageSize="5" AllowSorting="true" EditMode="DataGridEditMode.Single"
+            Data="@conductores" TItem="ConductorDto" RowUpdate="@OnUpdateRow" RowCreate="@OnCreateRow" Sort="@Reset" Page="@Reset" Filter="@Reset" ColumnWidth="200px">
+    <EmptyTemplate>
+        <p style="color: lightgrey; font-size: 24px; text-align: center; margin: 2rem;">No existen registros.</p>
+    </EmptyTemplate>
+    <Columns>
+        <RadzenDataGridColumn TItem="ConductorDto" Property="Nombre" Title="Nombre">
+            <EditTemplate Context="conductor">
+                <RadzenTextBox @bind-Value="conductor.Nombre" Style="width:100%; display: block" Name="Nombre" />
+                <RadzenRequiredValidator Text="Nombre es Requerido" Component="Nombre" Popup="true" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="ConductorDto" Context="conductor" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Width="156px">
+            <Template Context="conductor">
+                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" Click="@(args => EditRow(conductor))" @onclick:stopPropagation="true">
+                </RadzenButton>
+                <RadzenButton ButtonStyle="ButtonStyle.Danger" Icon="delete" Variant="Variant.Flat" Shade="Shade.Lighter" Size="ButtonSize.Medium" class="my-1 ms-1" Click="@(args => DeleteRow(conductor))"  @onclick:stopPropagation="true">
+                </RadzenButton>
+            </Template>
+            <EditTemplate Context="conductor">
+                <RadzenButton Icon="check" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat" Size="ButtonSize.Medium" Click="@((args) => SaveRow(conductor))">
+                </RadzenButton>
+                <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" class="my-1 ms-1" Click="@((args) => CancelEdit(conductor))">
+                </RadzenButton>
+                <RadzenButton ButtonStyle="ButtonStyle.Danger" Icon="delete" Variant="Variant.Flat" Shade="Shade.Lighter" Size="ButtonSize.Medium" class="my-1 ms-1" Click="@(args => DeleteRow(conductor))">
+                </RadzenButton>
+            </EditTemplate>
+        </RadzenDataGridColumn>
+    </Columns>
+</RadzenDataGrid>
+
+@code {
+    RadzenDataGrid<ConductorDto> conductoresGrid;
+    IEnumerable<ConductorDto> conductores;
+
+    ConductorDto conductorToInsert;
+    ConductorDto conductorToUpdate;
+
+    void Reset()
+    {
+        conductorToInsert = null;
+        conductorToUpdate = null;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        var response = await apiService.GetList<ConductorDto>("Conductores", false, "", appConfiguration.Value.ServiceURL, "",0);
+
+        if (!response.IsError)
+        {
+            conductores = response.Result as List<ConductorDto>;
+        }
+    }
+
+    async Task EditRow(ConductorDto conductor)
+    {
+        conductorToUpdate = conductor;
+        await conductoresGrid.EditRow(conductor);
+    }
+
+    async void OnUpdateRow(ConductorDto conductor)
+    {
+        if (conductor == conductorToInsert)
+        {
+            conductorToInsert = null;
+        }
+
+        conductorToUpdate = null;
+
+        /*envio api*/
+        var response = await apiService.Put<ConductorDto>("Conductores", conductor, false, "", appConfiguration.Value.ServiceURL, "", 0);
+
+    }
+
+    async Task SaveRow(ConductorDto conductor)
+    {
+        await conductoresGrid.UpdateRow(conductor);
+    }
+
+    void CancelEdit(ConductorDto conductor)
+    {
+        if (conductor == conductorToInsert)
+        {
+            conductorToInsert = null;
+        }
+
+        conductorToUpdate = null;
+
+        conductoresGrid.CancelEditRow(conductor);
+
+
+    }
+
+    async Task DeleteRow(ConductorDto conductor)
+    {
+        if (conductor == conductorToInsert)
+        {
+            conductorToInsert = null;
+        }
+
+        if (conductor == conductorToUpdate)
+        {
+            conductorToUpdate = null;
+        }
+
+        if (conductores.Contains(conductor))
+        {
+            /*envio al api*/
+            var response = await apiService.Delete<ConductorDto>("Conductores", false, conductor, "", appConfiguration.Value.ServiceURL, "", 0);
+
+            await Recargar();
+
+            await conductoresGrid.Reload();
+        }
+        else
+        {
+            conductoresGrid.CancelEditRow(conductor);
+            await conductoresGrid.Reload();
+        }
+    }
+
+    async Task InsertRow()
+    {
+        conductorToInsert = new ConductorDto();
+        await conductoresGrid.InsertRow(conductorToInsert);
+    }
+
+    async void OnCreateRow(ConductorDto conductor)
+    {       
+        conductorToInsert = null;
+
+        var response = await apiService.Post<ConductorDto>("Conductores", conductor, false, "", appConfiguration.Value.ServiceURL, "", 0);
+       
+    }
+
+    async Task Recargar()
+    {
+        var response = await apiService.GetList<ConductorDto>("Conductores", false, "", appConfiguration.Value.ServiceURL, "", 0);
+
+        if (!response.IsError)
+        {
+            conductores = response.Result as List<ConductorDto>;
+        }
+    }
+}

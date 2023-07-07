@@ -1,0 +1,221 @@
+﻿@page "/Rutas"
+@using Microsoft.Extensions.Options;
+@using Rutas.Domain;
+
+@inject Helpers.IApiService apiService
+@inject IOptions<AppConfiguration> appConfiguration
+@inject DialogService DialogService
+
+<h3>Rutas</h3>
+
+<RadzenButton ButtonStyle="ButtonStyle.Success" Icon="add_circle_outline" class="mt-2 mb-4" Text="Agregar Nuevo" Click="@InsertRow" Disabled=@(rutasToInsert != null || rutaToUpdate != null) />
+<RadzenDataGrid @ref="rutasGrid" AllowAlternatingRows="false" AllowFiltering="true" AllowPaging="true" PageSize="5" AllowSorting="true" EditMode="DataGridEditMode.Single"
+                Data="@rutas" TItem="RutaDto" RowUpdate="@OnUpdateRow" RowCreate="@OnCreateRow" Sort="@Reset" Page="@Reset" Filter="@Reset" ColumnWidth="200px">
+    <EmptyTemplate>
+        <p style="color: lightgrey; font-size: 24px; text-align: center; margin: 2rem;">No existen registros.</p>
+    </EmptyTemplate>
+    <Columns>
+        <RadzenDataGridColumn TItem="RutaDto" Property="Codigo" Title="Código">
+            <EditTemplate Context="ruta">
+                <RadzenTextBox @bind-Value="ruta.Codigo" Style="width:100%; display: block" Name="Codigo" />
+                <RadzenRequiredValidator Text="Código es Requerido" Component="Codigo" Popup="true" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+        <RadzenDataGridColumn TItem="RutaDto" Property="Km_Recorridos" Title="Km. Recorridos">
+            <Template Context="ruta">
+                @ruta.Km_Recorridos.Value.ToString("#,##0")
+            </Template>
+            <EditTemplate Context="ruta">
+                <RadzenNumeric Min="1" Max="99999" TValue="decimal?" Format="#####" TextAlign="TextAlign.Right" @bind-Value="ruta.Km_Recorridos" Style="width:100%; display: block" Name="Km_Recorridos" />
+                <RadzenRequiredValidator Text="Kilometros recorridos es Requerido" Component="Km_Recorridos" Popup="true" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+        
+        <RadzenDataGridColumn TItem="RutaDto" Property="IdCiudadInicio" Title="Ciudad Inicio">
+            <Template Context="ruta">
+                @ruta.CiudadInicio
+            </Template>
+            <EditTemplate Context="ruta">
+                <RadzenDropDown @bind-Value="ruta.IdCiudadInicio" Data="@ciudades" Name="CiudadInicio" ValueProperty="Id" Style="width:100%; display: block;">
+                    <Template>
+                        @context.Nombre
+                    </Template>
+                </RadzenDropDown>
+                <RadzenRequiredValidator Text="Ciudad de Inicio es Requerido" Component="CiudadInicio" Popup="true" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+
+        <RadzenDataGridColumn TItem="RutaDto" Property="IdCiudadFinal" Title="Ciudad Inicio">
+            <Template Context="ruta">
+                @ruta.CiudadFinal
+            </Template>
+            <EditTemplate Context="ruta">
+                <RadzenDropDown @bind-Value="ruta.IdCiudadFinal" Data="@ciudades" Name="CiudadFinal" ValueProperty="Id" Style="width:100%; display: block;">
+                    <Template>
+                        @context.Nombre
+                    </Template>
+                </RadzenDropDown>
+                <RadzenRequiredValidator Text="Ciudad de Fin es Requerido" Component="CiudadFinal" Popup="true" />
+            </EditTemplate>
+        </RadzenDataGridColumn>
+        
+
+        <RadzenDataGridColumn TItem="RutaDto" Context="ruta" Filterable="false" Sortable="false" TextAlign="TextAlign.Right" Width="156px">
+            <Template Context="ruta">
+                <RadzenButton Icon="aspect_ratio" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" Click="@(args => OpenDialog(ruta))" @onclick:stopPropagation="true">
+                </RadzenButton>
+                <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" Click="@(args => EditRow(ruta))" @onclick:stopPropagation="true">
+                </RadzenButton>
+                <RadzenButton ButtonStyle="ButtonStyle.Danger" Icon="delete" Variant="Variant.Flat" Shade="Shade.Lighter" Size="ButtonSize.Medium" class="my-1 ms-1" Click="@(args => DeleteRow(ruta))" @onclick:stopPropagation="true">
+                </RadzenButton>
+            </Template>
+            <EditTemplate Context="ruta">
+                <RadzenButton Icon="check" ButtonStyle="ButtonStyle.Success" Variant="Variant.Flat" Size="ButtonSize.Medium" Click="@((args) => SaveRow(ruta))">
+                </RadzenButton>
+                <RadzenButton Icon="close" ButtonStyle="ButtonStyle.Light" Variant="Variant.Flat" Size="ButtonSize.Medium" class="my-1 ms-1" Click="@((args) => CancelEdit(ruta))">
+                </RadzenButton>
+                <RadzenButton ButtonStyle="ButtonStyle.Danger" Icon="delete" Variant="Variant.Flat" Shade="Shade.Lighter" Size="ButtonSize.Medium" class="my-1 ms-1" Click="@(args => DeleteRow(ruta))">
+                </RadzenButton>
+            </EditTemplate>
+        </RadzenDataGridColumn>
+    </Columns>
+</RadzenDataGrid>
+
+@code {
+    RadzenDataGrid<RutaDto> rutasGrid;
+    IEnumerable<RutaDto> rutas;
+    IEnumerable<CiudadDto> ciudades;
+
+    RutaDto rutasToInsert;
+    RutaDto rutaToUpdate;
+
+    void Reset()
+    {
+        rutasToInsert = null;
+        rutaToUpdate = null;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+
+        var response = await apiService.GetList<RutaDto>("Rutas", false, "", appConfiguration.Value.ServiceURL, "", 0);
+
+        if (!response.IsError)
+        {
+            rutas = response.Result as List<RutaDto>;
+        }
+
+        response = await apiService.GetList<CiudadDto>("Ciudades", false, "", appConfiguration.Value.ServiceURL, "", 0);
+
+        if (!response.IsError)
+        {
+            ciudades = response.Result as List<CiudadDto>;
+        }
+    }
+
+    async Task EditRow(RutaDto ruta)
+    {
+        rutaToUpdate = ruta;
+        await rutasGrid.EditRow(ruta);
+    }
+
+    async void OnUpdateRow(RutaDto ruta)
+    {
+        if (ruta == rutasToInsert)
+        {
+            rutasToInsert = null;
+        }
+
+        rutaToUpdate = null;
+
+        /*envio api*/
+        var response = await apiService.Put<RutaDto>("Rutas", ruta, false, "", appConfiguration.Value.ServiceURL, "", 0);
+
+        await Recargar();
+
+        await rutasGrid.Reload();
+
+    }
+
+    async Task SaveRow(RutaDto ruta)
+    {
+        await rutasGrid.UpdateRow(ruta);
+    }
+
+    void CancelEdit(RutaDto ruta)
+    {
+        if (ruta == rutasToInsert)
+        {
+            rutasToInsert = null;
+        }
+
+        rutaToUpdate = null;
+
+        rutasGrid.CancelEditRow(ruta);
+
+
+    }
+
+    async Task DeleteRow(RutaDto ruta)
+    {
+        if (ruta == rutasToInsert)
+        {
+            rutasToInsert = null;
+        }
+
+        if (ruta == rutaToUpdate)
+        {
+            rutaToUpdate = null;
+        }
+
+        if (rutas.Contains(ruta))
+        {
+            /*envio al api*/
+            var response = await apiService.Delete<RutaDto>("Rutas", false, ruta, "", appConfiguration.Value.ServiceURL, "", 0);
+
+            await Recargar();
+
+            await rutasGrid.Reload();
+        }
+        else
+        {
+            rutasGrid.CancelEditRow(ruta);
+            await rutasGrid.Reload();
+        }
+    }
+
+    async Task InsertRow()
+    {
+        rutasToInsert = new RutaDto();
+        await rutasGrid.InsertRow(rutasToInsert);
+    }
+
+    async void OnCreateRow(RutaDto ruta)
+    {
+        rutasToInsert = null;
+
+        var response = await apiService.Post<RutaDto>("Rutas", ruta, false, "", appConfiguration.Value.ServiceURL, "", 0);
+
+    }
+
+    async Task Recargar()
+    {
+        var response = await apiService.GetList<RutaDto>("Rutas", false, "", appConfiguration.Value.ServiceURL, "", 0);
+        rutas = new List<RutaDto>();
+        if (!response.IsError)
+        {
+
+            rutas = response.Result as List<RutaDto>;
+        }
+
+        StateHasChanged();
+    }
+
+    async Task OpenDialog(RutaDto ruta)
+    {
+        await DialogService.OpenAsync<DetalleRuta>($"Recorrido",
+               new Dictionary<string, object>() { { "IdRuta", ruta.Id } },
+               new DialogOptions() { Width = "700px", Height = "512px", Resizable = true, Draggable = true });
+    }
+}
